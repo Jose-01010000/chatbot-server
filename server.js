@@ -1,124 +1,38 @@
-require('dotenv').config();
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const dialogflow = require('@google-cloud/dialogflow');
-
+const express = require("express");
+const path = require("path");
 const app = express();
-const port = process.env.PORT || 5000;
-const projectId = process.env.DIALOGFLOW_PROJECT_ID;
+const cors = require("cors");
+const morgan = require("morgan");
 
-app.use(bodyParser.json());
+//Routes
+const talkToChatbot = require("./chatbot");
+const fulfillmentRoutes = require("./fulfillment");
+
+let jsonParser = express.json();
+let urlEncoded = express.urlencoded({ extended: true });
 app.use(cors());
+app.use(morgan("dev"));
 
-app.post('/train', async (req, res) => {
-    try {
-      const { userQuery, intent, feedback } = req.body;
-  
-      const sessionClient = new dialogflow.SessionsClient({
-        keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+app.post("/chatbot", jsonParser, urlEncoded, async (req, res) => {
+  const message = req.body.message;
+  //console.log('message' + message)
+
+  talkToChatbot(message)
+    .then((response) => {
+      res.send({ message: response });
+      console.log(response);
+    })
+    .catch((error) => {
+      console.log("Something went wrong: " + error);
+      res.send({
+        error: "Error occured here",
       });
-  
-      const sessionPath = sessionClient.projectAgentSessionPath(projectId, 'chatbot-training-session');
-      const request = {
-        session: sessionPath,
-        queryInput: {
-          text: {
-            text: userQuery,
-            languageCode: 'es-ES',
-          },
-        },
-        queryParams: {
-          knowledgeBaseNames: [`projects/${projectId}/knowledgeBases/${intent}`],
-        },
-      };
-  
-      const [response] = await sessionClient.detectIntent(request);
-  
-      // Seleccionar la respuesta correspondiente
-      let message;
-      switch (response.queryResult.intent.displayName) {
-        case 'Saludo':
-          message = '¡Hola! ¿En qué puedo ayudarte?';
-          break;
-        case 'Despedida':
-          message = '¡Hasta luego!';
-          break;
-        default:
-          message = 'Lo siento, no entiendo lo que estás diciendo';
-          break;
-      }
-  
-      const feedbackEvent = {
-        name: 'feedback',
-        parameters: {
-          feedback,
-        },
-      };
-      const feedbackRequest = {
-        session: sessionPath,
-        queryInput: {
-          event: feedbackEvent,
-          languageCode: 'es-ES',
-        },
-      };
-  
-      await sessionClient.detectIntent(feedbackRequest);
-  
-      res.status(200).json({ message });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Error en el servidor' });
-    }
-  });
-  
+    });
+});
+app.use(fulfillmentRoutes);
 
-// app.post('/train', async (req, res) => {
-//   try {
-//     const { userQuery, intent, feedback } = req.body;
-
-//     const sessionClient = new dialogflow.SessionsClient({
-//       keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-//     });
-
-//     const sessionPath = sessionClient.projectAgentSessionPath(projectId, 'chatbot-training-session');
-//     const request = {
-//       session: sessionPath,
-//       queryInput: {
-//         text: {
-//           text: userQuery,
-//           languageCode: 'es-ES',
-//         },
-//       },
-//       queryParams: {
-//         knowledgeBaseNames: [`projects/${projectId}/knowledgeBases/${intent}`],
-//       },
-//     };
-
-//     const [response] = await sessionClient.detectIntent(request);
-//     const feedbackEvent = {
-//       name: 'feedback',
-//       parameters: {
-//         feedback,
-//       },
-//     };
-//     const feedbackRequest = {
-//       session: sessionPath,
-//       queryInput: {
-//         event: feedbackEvent,
-//         languageCode: 'es-ES',
-//       },
-//     };
-
-//     await sessionClient.detectIntent(feedbackRequest);
-
-//     res.status(200).json({ message: 'Entrenamiento completado' });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Error en el servidor' });
-//   }
-// });
+const port = process.env.PORT || 3001;
 
 app.listen(port, () => {
-  console.log(`🔥 Servidor corriendo en el puerto ${port}`);
+  console.log(`🔥 Servidor iniciado en el puerto: ${port}`);
 });
