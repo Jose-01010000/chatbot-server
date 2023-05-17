@@ -19,6 +19,11 @@ const talkToChatbot = async (message) => {
   console.log("message " + message);
   const botRequest = {
     session: sessionPath,
+    queryParams: {
+      sentimentAnalysisRequestConfig: {
+        analyzeQueryTextSentiment: true,
+      },
+    },
     queryInput: {
       text: {
         text: message,
